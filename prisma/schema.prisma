@@ -9,10 +9,41 @@ generator client {
   provider = "prisma-client-js"
 }
 
-model User {
-  id    Int    @id @default(autoincrement())
-  email String @unique
-  name  String
-  password String
+enum Role {
+  Organizer
+  Staff
+  Attendee
 }
 
+model User {
+  id       Int     @id @default(autoincrement())
+  email    String  @unique
+  name     String
+  password String
+  role     Role    // 使用枚举类型
+  events   Event[] // 如果是 Organizer，可以创建多个事件（1对多）
+}
+
+
+model Event {
+  id             String         @id @default(uuid())
+  title          String
+  slug           String         @unique
+  description    String
+  location       String
+  startDate      DateTime
+  endDate        DateTime?
+  capacity       Int?
+  status         String         @default("draft") // draft, published, cancelled, completed
+  isPublic       Boolean        @default(true)
+  imageUrl       String?
+  virtualEventUrl String?        // For online events (Zoom, Teams, etc.)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  organizerId    String
+  organizer      User           @relation("EventOrganizer", fields: [organizerId], references: [id])
+  ticketTypes    TicketType[]
+  registrations  Registration[]
+  customFields   CustomField[]
+  discountCodes  DiscountCode[]
+}

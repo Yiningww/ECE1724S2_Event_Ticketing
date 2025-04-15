@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import prisma from "@/lib/prisma";
-import bcrypt from "bcrypt"
+import bcrypt from "bcrypt";
 
 export const authOptions = {
   providers: [
@@ -9,27 +9,62 @@ export const authOptions = {
       name: "Credentials",
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
+        password: { label: "Password", type: "password" },
+        role: { label: "Role", type: "text" }, // 前端会传入
       },
       async authorize(credentials) {
-        // 1) 查找用户
-        const user = await prisma.user.findUnique({ where: { email: credentials.email } });
-        if (!user) return null;
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email },
+        });
 
-        // 2) 比对哈希密码
+        if (!user) {
+          throw new Error("Invalid email or password");
+        }
+
         const isValid = await bcrypt.compare(credentials.password, user.password);
-        if (!isValid) return null;
+        if (!isValid) {
+          throw new Error("Invalid email or password");
+        }
 
-        // 3) 返回用户基本信息
+        if (user.role !== credentials.role) {
+          throw new Error("Selected role does not match our records");
+        }
+
         return {
           id: user.id.toString(),
-          email: user.email,
           name: user.name,
+          email: user.email,
+          role: user.role, // "Organizer", "Staff", "Attendee"
         };
-      }
-    })
+      },
+    }),
   ],
-  session: { strategy: "jwt" },
+
+  session: {
+    strategy: "jwt",
+  },
+
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.role = user.role;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (token) {
+        session.user.id = token.id as string;
+        session.user.role = token.role as string;
+      }
+      return session;
+    },
+  },
+
+  pages: {
+    signIn: "/login",
+  },
+
   secret: process.env.NEXTAUTH_SECRET,
 };
 
